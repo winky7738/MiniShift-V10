@@ -1,0 +1,60 @@
+MiniShift V10 AI 代码交接包
+日期：2026-08-29
+
+一、目录
+
+current\
+  当前实测 V10 代码。训练入口为 train_single_category.py。
+  双击 start_training.bat 可从当前解压目录启动，不再绑定原作者的 D:\winky 路径。
+
+v2_runtime\
+  配套 V2 主干运行时代码。current\train_single_category.py 在原配置路径不存在时，会自动使用这个同级目录。
+
+evidence\
+  两批共 12 类的 result.json 与 batch_summary.json，用于让 AI 核对实验结论。
+
+V10_AI代码修改说明.txt
+  面向 ChatGPT、Codex、Cursor 等 AI 代码编辑器的完整改造规范。
+
+二、当前代码与说明的关系
+
+当前代码是产生 evidence 中 V10 结果的实验实现，已经包含：
+- geom4d 无用计算跳过
+- 确定性训练/测试特征缓存
+- 区域 memory bank
+- 区域 coreset
+- FPFH 三尺度秩融合
+- 类别 profile 和 pipeline route
+- 批量训练、断点续跑、逐类 JSON、逐样本 JSONL、批次汇总
+
+说明文件还包含根据最终 12 类结果提出的下一步修正，因此以下两点是“待另一位同学的 AI 实施并重新验证”，不是当前代码已经完成：
+1. screw：像素路径保留 regional，独立修复对象级分数方向/聚合。
+2. plastic_cylinder：回退到真正的原始 FPFHFeatures 全流程，而不仅是关闭 regional 参数。
+
+不要声称上述两项已经修复；必须按说明做独立 A/B 和完整类别验证。
+
+三、运行前配置
+
+默认数据集路径：D:\BaiduNetdiskDownload
+WSL 映射路径：/mnt/d/BaiduNetdiskDownload
+默认 WSL：Ubuntu-22.04
+默认环境脚本：/home/xu/simple3d-env.sh
+
+如果另一台电脑不同，应先修改：
+- current\train_single_category.py 中 DATA_ROOT
+- current\start_training.bat 中 WSL 发行版和环境脚本路径
+
+数据集目录必须包含：
+capsule, cube, spring_pad, screw, screen, piggy, nut, flat_pad,
+plastic_cylinder, button_cell, toothbrush, light
+
+四、推荐交给 AI 的提示词
+
+请完整阅读根目录的《V10_AI代码修改说明.txt》和《交接说明.txt》，然后检查 current 与 v2_runtime 的真实调用链。先报告当前实现和规范的差异，再按规范优先修复 screw 的 O/P 分支与 plastic_cylinder 的纯源代码回退。不要使用测试 label 在线调参。完成后运行静态检查、合成 smoke test、固定子集 A/B，最后列出修改文件、有效参数、结果路径和从零运行时间。
+
+五、注意
+
+- 数据集、CUDA 环境和 feature-cache 未打包。
+- evidence 是历史实验结果，不应被训练代码读取。
+- 当前交接版默认 12 类顺序运行，支持已有完整 result.json 自动跳过。
+- 从零运行预计约 23.1 小时，接近 24 小时上限。

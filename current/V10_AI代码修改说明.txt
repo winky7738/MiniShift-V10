@@ -1,0 +1,664 @@
+MiniShiftAD / Simple3D V10 优化改造规范（供 ChatGPT、Codex、Cursor 等 AI 代码编辑器读取）
+编码：UTF-8
+规范版本：1.0
+日期：2026-08-29
+
+======================================================================
+0. 给 AI 代码编辑器的最高优先级指令
+======================================================================
+
+你正在修改 MiniShiftAD / Simple3D 的 3D 点云异常检测代码。
+
+必须先阅读目标工程中的以下文件，再开始修改：
+1. train_single_category.py 或实际训练入口
+2. patchcore_runner.py
+3. feature_extractors/features.py
+4. feature_extractors/FPFH.py
+5. feature_extractors/pointnet2_utils.py
+6. data/MiniShiftAD.py
+
+不要直接覆盖源代码中同名函数。先确认函数签名、张量形状、设备位置和调用链与本规范一致。
+
+任务目标：
+- 保留原始 V2/Simple3D 的 FPFH + LFSA + MSND 主干。
+- 在 GTX 1660 等低显存 GPU 上，将 12 类总运行时间控制在 24 小时附近。
+- 通过类别路由选择“全局原始评分”或“区域分尺度评分”，不要让 12 类共用一种策略。
+- 同时输出 O-ROC、P-ROC、每类结果 JSON、逐样本 JSONL 和批次汇总 JSON。
+- 不允许根据当前测试标签在线选择参数，不允许在正式评估时读取测试标签调参。
+
+成功标准：
+- 所有类别可以独立训练，也可以顺序批量训练。
+- 单类失败不阻断后续类别。
+- 支持断点续跑。
+- 无强制两小时终止器。
+- CUDA 不可用时尽早报错。
+- 训练和测试过程显示 tqdm 进度。
+
+======================================================================
+1. 已验证的实验结论（先理解，再改代码）
+======================================================================
+
+Simple3D 官方/源代码 12 类平均：
+- O-ROC = 0.7098（表格四舍五入为 0.710）
+- P-ROC = 0.6658（表格四舍五入为 0.666）
+- 综合均值 = 0.6878（表格四舍五入为 0.688）
+
+V10 本机 12 类结果：
+- O-ROC = 0.7397
+- P-ROC = 0.6893
+- 综合均值 = 0.7145
+- 综合绝对提升 = +0.0267
+- 12 类中 10 类综合值提高，2 类下降。
+
+逐类证据（格式：源代码综合值 -> V10 综合值，变化）：
+- capsule: 0.8845 -> 0.8875，+0.0030
+- cube: 0.6880 -> 0.6980，+0.0100
+- spring_pad: 0.7145 -> 0.7220，+0.0075
+- screw: 0.4450 -> 0.4395，-0.0055
+- screen: 0.6400 -> 0.7220，+0.0820
+- piggy: 0.6865 -> 0.7445，+0.0580
+- nut: 0.7465 -> 0.7600，+0.0135
+- flat_pad: 0.6850 -> 0.6890，+0.0040
+- plastic_cylinder: 0.8045 -> 0.7895，-0.0150
+- button_cell: 0.8270 -> 0.8360，+0.0090
+- toothbrush: 0.4830 -> 0.5975，+0.1145
+- light: 0.6490 -> 0.6885，+0.0395
+
+核心经验：
+1. 区域记忆 + 分尺度秩融合对平面类、细长类和部分规则几何体有效。
+2. piggy 的历史最好结果来自全局 99 维 FPFH + 原始对象评分，不适合强行使用区域秩融合。
+3. 高基分类（capsule、button_cell）优先保持原始全局路径，只做低风险加速。
+4. 对象级 O-ROC 和像素级 P-ROC 可能需要不同策略，不能假设一个分数同时最优。
+5. screw 的 P-ROC 提高但 O-ROC 下降，属于对象分数方向/聚合问题，不是像素特征完全失败。
+6. plastic_cylinder 在 V10 回退，应优先保留源代码/v3.5 的纯原始路径。
+
+======================================================================
+2. 不改变的主干参数
+======================================================================
+
+以下是可靠的公共工作点，除非有严格 A/B 证据，不要修改：
+
+COMMON_CONFIG = {
+  "dataset": "minishift",
+  "device": "cuda:0",
+  "level": "ALL",
+  "feature": "FPFH",
+  "num_group": 4096,
+  "group_size": 128,
+  "max_nn": 40,
+  "normal_max_nn": 20,
+  "use_LFSA": true,
+  "use_MSND": true,
+  "num_MSND": 2,
+  "scale_fusion": "legacy_equivalent",
+  "legacy_duplicate_scale": false,
+  "p_map_mode": "dual_center",
+  "anomaly_num_nn": 1,
+  "fpfh_normalization": "none",
+  "use_position_features": false,
+  "position_weight": 0.0,
+  "query_chunk": 1024,
+  "bank_chunk": 8192,
+  "interp_chunk_size": 4096,
+  "coreset_preselect_factor": 0,
+  "cache_features": true,
+  "cache_test_features": true,
+  "vis_save": false
+}
+
+已经通过 A/B 拒绝的方向：
+- 不要默认使用 3-NN；本地 A/B 中 1-NN 更好。
+- 不要默认对 FPFH 使用 Hellinger 归一化；本地 A/B 中 none 更好。
+- 不要拼接原始 XYZ 位置特征；MiniShift 存在旋转/姿态变化。
+- 不要恢复重复中间尺度造成的 132 维特征；使用紧凑 99 维表示。
+- 不要在 use_geom4d=false 时仍计算局部几何特征。
+
+======================================================================
+3. 第一项关键改造：跳过未使用的 geom4d 计算
+======================================================================
+
+问题：
+部分 V2 FPFH 实现即使 use_geom4d=false，仍会执行局部邻域索引和特征值分解，最后再丢弃结果。这会显著拖慢 GTX 1660。
+
+实现要求：
+- 在自定义 FPFHFeatures 子类中覆盖 _compute_geom4d。
+- 当 use_geom4d 和 use_geom4d_for_p 都为 false 时，立即返回 None。
+- 只有任一选项为 true 时才调用父类实现。
+
+伪代码：
+
+def _compute_geom4d(points, center, idx):
+    if not args.use_geom4d and not args.use_geom4d_for_p:
+        return None
+    return super()._compute_geom4d(points, center, idx)
+
+验收：
+- 4096 groups 下不再进入 index_points/eigh 的无用 geom4d 路径。
+- FPFH 输出仍为 N x 99。
+
+======================================================================
+4. 第二项关键改造：确定性特征缓存
+======================================================================
+
+目标：重复实验不重复提取相同 FPFH。
+
+训练缓存必须至少由以下字段生成哈希：
+- 样本路径
+- num_group
+- group_size
+- max_nn
+- normal_max_nn
+- num_MSND
+- scale_fusion
+- fpfh_normalization
+- use_position_features
+- position_weight
+- use_geom4d
+
+测试缓存文件名必须和训练缓存区分，例如 test-<sha1>.pt。
+
+缓存内容只保存：
+- features：CPU tensor
+- center：CPU tensor
+
+安全要求：
+- 缓存读取后仍要把张量移动到当前 device。
+- 改变任何影响特征的参数时必须产生新哈希。
+- 路径不确定或数据集不能重建几何关系时，不要使用测试缓存。
+
+注意：缓存主要提高重复运行速度。正式统计“从零运行时间”时不能把已有缓存时间当成完整训练时间。
+
+======================================================================
+5. 第三项关键改造：旋转相对稳健的区域记忆
+======================================================================
+
+仅对 regional 路线启用。
+
+算法：
+1. 对每个样本的 LFSA centers 计算坐标中位数并中心化。
+2. 计算 3x3 协方差矩阵。
+3. 对协方差做 eigh，取最小特征值对应向量作为局部法向。
+4. 高度使用 abs(center dot normal)，消除法向正负号歧义。
+5. 平面半径使用去除法向分量后的 L2 范数。
+6. 分别用本样本的 95% 分位数归一化半径和高度。
+7. 根据 region_radial_bins、region_height_bins 生成区域编号。
+
+region_id = radial_id * height_bins + height_id
+
+最近邻搜索：
+- 查询 center 优先只和相同 region 的 normal prototype 比较。
+- 如果某区域 bank 数量小于 region_min_bank，则回退到全局 bank。
+- 不允许因为区域为空而产生 inf、NaN 或空 top-k。
+
+======================================================================
+6. 第四项关键改造：区域 coreset
+======================================================================
+
+源代码通常对所有训练特征做一次全局 greedy coreset。
+
+区域版本：
+1. 拼接训练特征和对应 region_id。
+2. 按 region_id 分区。
+3. 每个区域分别选择 round(coreset_ratio * region_size) 个 prototype。
+4. 每区至少保留 1 个。
+5. 合并所有区域索引，构造最终 patch_lib 和 bank_region_ids。
+
+普通类别：coreset_ratio=0.05。
+困难类别（cube、toothbrush，可探索 screw）：coreset_ratio=0.06。
+
+不要盲目继续增大 coreset：测试阶段 cdist 时间近似随 bank size 线性增长。
+
+======================================================================
+7. 第五项关键改造：FPFH 三尺度分开评分再融合
+======================================================================
+
+99 维 FPFH 视为三个连续 33 维尺度：
+- scale_0 = features[:, 0:33]
+- scale_1 = features[:, 33:66]
+- scale_2 = features[:, 66:99]
+
+对每个尺度分别计算到 memory bank 的最近邻距离。
+
+训练正常分数校准：
+- 从训练 centers 中确定性均匀采样，普通类别最多 4096 个，困难类别最多 8192 个。
+- 每个尺度保存排序后的正常最近邻距离 reference。
+- 测试分数用 searchsorted 转为经验分位秩。
+- 对超过正常 q99 的部分附加轻量 tail：
+
+rank_score = empirical_rank + rank_tail_weight * relu(raw_score / q99 - 1)
+rank_tail_weight = 0.15
+
+最终尺度融合：
+
+fused = sum(scale_weight[i] * rank_score[i]) / sum(scale_weight)
+
+不要对 piggy、capsule、button_cell、plastic_cylinder 默认启用此路径。
+
+======================================================================
+8. 第六项关键改造：类别对象分数
+======================================================================
+
+区域路线的候选统计：
+- top80 = 点异常图最高 80 个值的均值
+- top500 = 点异常图最高 500 个值的均值
+- q99 = 点异常图 99% 分位数
+- q999 = 点异常图 99.9% 分位数
+
+category_multi_tail：
+
+object_score = w0 * top80 + w1 * top500 + w2 * q999
+
+权重必须非负、长度为 3、总和为 1。
+
+全局原始路线：
+- 使用源代码 legacy object score。
+- 不要套用 category_multi_tail。
+
+诊断 JSONL 必须同时保存 top80、top500、q99、q999 和 final_object_score，便于离线定位聚合问题。
+
+======================================================================
+9. 类别路由表（最重要，禁止所有类别一刀切）
+======================================================================
+
+ROUTE_GLOBAL_LEGACY = {
+  "use_regional_memory": false,
+  "use_regional_coreset": false,
+  "use_scale_rank_fusion": false,
+  "object_score_mode": "legacy",
+  "coreset_ratio": 0.05,
+  "normal_calibration_samples": 16,
+  "scale_calibration_samples": 4096
+}
+
+ROUTE_REGIONAL_RANK = {
+  "use_regional_memory": true,
+  "use_regional_coreset": true,
+  "use_scale_rank_fusion": true,
+  "object_score_mode": "category_multi_tail",
+  "coreset_ratio": 0.05,
+  "normal_calibration_samples": 16,
+  "scale_calibration_samples": 4096,
+  "region_min_bank": 64
+}
+
+ROUTE_REGIONAL_EXTRA = {
+  "use_regional_memory": true,
+  "use_regional_coreset": true,
+  "use_scale_rank_fusion": true,
+  "object_score_mode": "category_multi_tail",
+  "coreset_ratio": 0.06,
+  "normal_calibration_samples": 24,
+  "scale_calibration_samples": 8192,
+  "region_min_bank": 80
+}
+
+推荐路由：
+
+CATEGORY_ROUTE = {
+  "capsule": "global_legacy",
+  "cube": "regional_extra",
+  "spring_pad": "regional_rank",
+  "screw": "special_split_required",
+  "screen": "regional_rank",
+  "piggy": "global_legacy",
+  "nut": "regional_rank",
+  "flat_pad": "regional_rank",
+  "plastic_cylinder": "pure_source_legacy",
+  "button_cell": "global_legacy",
+  "toothbrush": "regional_extra",
+  "light": "regional_rank"
+}
+
+类别参数：
+
+CATEGORY_PROFILE = {
+  "nut": {
+    "profile": "localized_ring",
+    "object_tail_weights": [1.00, 0.00, 0.00],
+    "p_raw_weight": 0.70,
+    "p_smooth_weight": 0.30,
+    "smooth_k": 8,
+    "region_radial_bins": 4,
+    "region_height_bins": 1,
+    "decision_scale_weights": [0.25, 0.50, 0.25]
+  },
+  "screen": {
+    "profile": "planar_edge_aware",
+    "object_tail_weights": [0.15, 0.60, 0.25],
+    "p_raw_weight": 0.60,
+    "p_smooth_weight": 0.40,
+    "smooth_k": 10,
+    "region_radial_bins": 4,
+    "region_height_bins": 2,
+    "decision_scale_weights": [0.15, 0.55, 0.30]
+  },
+  "flat_pad": {
+    "profile": "planar_broad",
+    "object_tail_weights": [0.10, 0.65, 0.25],
+    "p_raw_weight": 0.55,
+    "p_smooth_weight": 0.45,
+    "smooth_k": 12,
+    "region_radial_bins": 4,
+    "region_height_bins": 2,
+    "decision_scale_weights": [0.20, 0.55, 0.25]
+  },
+  "spring_pad": {
+    "inherit": "flat_pad"
+  },
+  "light": {
+    "profile": "planar_broad",
+    "object_tail_weights": [0.10, 0.65, 0.25],
+    "p_raw_weight": 0.60,
+    "p_smooth_weight": 0.40,
+    "smooth_k": 10,
+    "region_radial_bins": 4,
+    "region_height_bins": 2,
+    "decision_scale_weights": [0.20, 0.55, 0.25]
+  },
+  "cube": {
+    "profile": "edged_volumetric",
+    "object_tail_weights": [0.20, 0.50, 0.30],
+    "p_raw_weight": 0.65,
+    "p_smooth_weight": 0.35,
+    "smooth_k": 8,
+    "region_radial_bins": 3,
+    "region_height_bins": 2,
+    "decision_scale_weights": [0.20, 0.50, 0.30]
+  },
+  "toothbrush": {
+    "profile": "thin_elongated",
+    "object_tail_weights": [0.45, 0.25, 0.30],
+    "p_raw_weight": 0.70,
+    "p_smooth_weight": 0.30,
+    "smooth_k": 6,
+    "region_radial_bins": 5,
+    "region_height_bins": 2,
+    "decision_scale_weights": [0.30, 0.50, 0.20]
+  },
+  "piggy": {
+    "profile": "smooth_volumetric",
+    "p_raw_weight": 0.65,
+    "p_smooth_weight": 0.35,
+    "smooth_k": 8
+  },
+  "capsule": {
+    "inherit": "piggy"
+  },
+  "button_cell": {
+    "profile": "localized_rotational",
+    "p_raw_weight": 0.65,
+    "p_smooth_weight": 0.35,
+    "smooth_k": 8
+  }
+}
+
+======================================================================
+10. screw 必须单独处理
+======================================================================
+
+已观察到：
+- 源代码 screw O-ROC = 0.267，P-ROC = 0.623。
+- V10 screw O-ROC = 0.190，P-ROC = 0.689。
+- 正常对象分数均值约 1.731，异常对象分数均值约 1.514。
+- 对象分数方向反转后，探索性 O-ROC 约为 0.810。
+
+这说明 regional 特征改善了像素定位，但对象异常分数方向与其他类别相反。
+
+推荐实现顺序：
+方案 A（最稳妥）：
+- screw 的 P 分数使用 regional_extra。
+- screw 的 O 分数使用源代码 legacy 路线。
+- 需要在 compute_anomaly_scores 中把 pixel_center_scores 和 object_center_scores 分开计算。
+
+方案 B（需要独立验证）：
+- screw 的对象分数乘以 -1。
+- 只能在独立验证集证明方向稳定后使用。
+- 禁止在正式测试循环中读取 label 决定是否反转。
+
+方案 C（研究方向）：
+- 只用正常训练集建立“正常度”而非“异常距离”统计。
+- 对 screw 计算与正常分数分布的双尾偏离程度。
+
+不要把 screw 的反向逻辑传播到其他类别。
+
+======================================================================
+11. plastic_cylinder 必须回退纯源代码路径
+======================================================================
+
+证据：
+- 源代码综合值 = 0.8045。
+- V10 综合值 = 0.7895。
+- O-ROC 和 P-ROC 同时下降。
+
+要求：
+- plastic_cylinder 优先直接使用源代码 FPFHFeatures + 源代码 run_coreset + legacy object score。
+- 不仅是把 use_regional_memory=false；应避免 CompetitionFPFHFeatures 中其他会改变 bank 或校准的逻辑。
+- 可在 PatchCore._prepare_for_class 中按类别选择特征类：
+
+if class_name == "plastic_cylinder":
+    method = OriginalFPFHFeatures(args)
+else:
+    method = CompetitionFPFHFeatures(args)
+
+- 保留日志和缓存时，要确认缓存不会改变数值结果。
+
+======================================================================
+12. 正常分数校准的加速
+======================================================================
+
+不要重新提取训练点云做校准。
+
+训练 collect_features 时保存：
+- feature tensor（CPU）
+- center tensor（CPU）
+- path
+
+校准时从 train_samples 中确定性均匀抽样：
+- 普通类别最多 16 个对象。
+- extra 类别最多 24 个对象。
+- 使用 torch.linspace 生成索引，避免随机波动。
+
+校准结束后必须恢复完整 train_samples。
+
+======================================================================
+13. 批量训练入口
+======================================================================
+
+训练入口应允许：
+
+CATEGORIES = (
+  "capsule", "cube", "spring_pad", "screw", "screen", "piggy",
+  "nut", "flat_pad", "plastic_cylinder", "button_cell", "toothbrush", "light"
+)
+
+每个类别：
+1. 设置当前 CATEGORY。
+2. 验证 DATA_ROOT/CATEGORY/train 和 test 存在。
+3. 创建全新的 PatchCore/model，禁止跨类别复用 memory bank。
+4. fit(category)。
+5. evaluate(category)。
+6. 保存独立 result.json。
+7. 删除 model 引用，执行 gc.collect() 和 torch.cuda.empty_cache()。
+8. 继续下一类。
+
+异常处理：
+- try/except 包围单个类别。
+- 记录 category 和 exception text。
+- 打印 traceback。
+- 继续下一个类别。
+- 所有类别结束后保存 batch_summary.json。
+
+断点续跑：
+- 如果 result.json 已存在、能解析且 metrics 非空，则跳过该类别。
+- 损坏或 metrics=null 的结果不得跳过。
+
+======================================================================
+14. 输出文件协议
+======================================================================
+
+每类 result.json 至少包含：
+
+{
+  "category": "...",
+  "level": "ALL",
+  "train_samples": 0,
+  "test_samples": 0,
+  "elapsed_seconds": 0.0,
+  "phase_seconds": {
+    "training_total": 0.0,
+    "testing_total": 0.0,
+    "coreset_selection_seconds": 0.0,
+    "scale_calibration_seconds": 0.0,
+    "normal_calibration_seconds": 0.0
+  },
+  "parameters": {},
+  "metrics": {
+    "image_auc": 0.0,
+    "pixel_auc": 0.0,
+    "au_pro": 0.0
+  }
+}
+
+每个测试样本 diagnostic JSONL 至少包含：
+
+{
+  "category": "...",
+  "sample_id": "...",
+  "label": 0,
+  "raw_top80": 0.0,
+  "raw_top500": 0.0,
+  "raw_score_q99": 0.0,
+  "raw_score_q999": 0.0,
+  "final_object_score": 0.0
+}
+
+注意：label 只用于最终离线计算指标和诊断记录，不得用于预测路径、参数选择或分数方向选择。
+
+批次 summary.json 至少包含：
+- run_tag
+- categories
+- completed_categories
+- skipped_existing_categories
+- failures
+- elapsed_seconds
+- 每类 metrics、elapsed_seconds、strategy_name、pipeline_route
+
+======================================================================
+15. 时间预算
+======================================================================
+
+本机两批实际总时间约 19.3 小时，但 screen、piggy、nut 使用了已有缓存。
+按它们无缓存历史时间替换后，完整 12 类预计约 23.1 小时。
+距离 24 小时仅约 50 分钟余量，必须避免无证据的额外评分分支。
+
+优先优化测试阶段，因为多数类别 60%-80% 时间消耗在测试：
+1. 保持 test feature cache。
+2. 保持 query/bank chunk，避免 OOM 后退到极小 chunk。
+3. 不要重复插值完整 500000 点异常图。
+4. 不要为 O/P 分支重复提取 FPFH；若分支分离，应共享一次特征提取。
+5. 更大的 coreset 仅用于低分类，并严格测量总时间。
+
+禁止重新加入强制 119/120 分钟停止器。若比赛规则只限制 12 类总时长，应记录总时长并在批次层面控制。
+
+======================================================================
+16. 验收测试顺序
+======================================================================
+
+阶段 1：静态检查
+- Python py_compile 通过。
+- 12 类 profile 均存在。
+- 所有权重长度和总和正确。
+- 所有 coreset_ratio 在 (0, 0.10]。
+
+阶段 2：合成特征 smoke test
+- 构造 3 个训练样本，每个 64x99 features 和 1x64x3 centers。
+- regional 路线运行 run_coreset。
+- scale references 数量为 3。
+- 输出分数 shape 正确且无 NaN/inf。
+- global 路线确认 use_regional_memory=false、use_scale_rank_fusion=false。
+
+阶段 3：小子集 A/B
+- 固定相同 train/test 索引。
+- 固定随机种子。
+- 只改变一个因素。
+- 同时记录 O-ROC、P-ROC、总时间和显存峰值。
+
+阶段 4：完整类别
+优先顺序：
+1. screw：验证对象/像素分支。
+2. plastic_cylinder：确认纯源代码回退恢复 0.8045 左右综合值。
+3. screen：确认 P-ROC 仍约 0.753。
+4. piggy：确认全局路径仍约 0.799/0.690。
+5. 其他类别。
+
+======================================================================
+17. AI 修改时的禁止事项
+======================================================================
+
+- 禁止根据文件夹名 good/defect 在预测时改变分数。
+- 禁止读取测试 label 后选择正负方向、权重或路线。
+- 禁止把本规范中的测试诊断最优 tail 权重直接当成已验证参数。
+- 禁止删除源代码基线实现；必须保留可回退路径。
+- 禁止让多个类别共用同一个 PatchCore 实例或 memory bank。
+- 禁止在循环间保留 GPU tensor 引用导致显存累积。
+- 禁止改变数据集样本顺序后再与旧结果做非配对比较。
+- 禁止只报告提高的类别而隐藏回退类别。
+- 禁止把 AU-PRO=0 解释为模型完全失败；当前 MiniShift evaluator 对非 MVTec 类别没有计算 AU-PRO。
+
+======================================================================
+18. 推荐的代码文件划分
+======================================================================
+
+train_single_category.py
+- 公共配置
+- 类别队列
+- 单类 fit/evaluate
+- 断点续跑
+- 批次汇总
+
+category_optimizer.py
+- CATEGORY_PROFILE
+- PIPELINE_ROUTE
+- 参数校验
+- 不包含训练循环
+
+competition_features.py
+- CompetitionFPFHFeatures
+- geom4d 跳过
+- 特征缓存
+- region_id
+- 区域 coreset
+- 分尺度评分与秩校准
+- 类别对象分数
+
+patchcore_runner.py
+- 保持数据加载和评估主流程
+- _prepare_for_class 解析类别参数
+- 必要时按类别选择 OriginalFPFHFeatures 或 CompetitionFPFHFeatures
+
+start_training.bat
+- 只负责进入 WSL 环境并执行 python -u train_single_category.py
+- 使用 tee 保存总控制台日志
+- 必须启用 bash pipefail，确保 Python 失败时返回非零状态
+
+======================================================================
+19. 最终交付清单
+======================================================================
+
+AI 完成修改后必须回答：
+1. 修改了哪些文件。
+2. 每个文件改变了什么。
+3. 12 类分别走哪条路线。
+4. screw 和 plastic_cylinder 如何特殊处理。
+5. 是否保留源代码回退路径。
+6. smoke test 是否通过。
+7. 正式启动命令是什么。
+8. result.json、diagnostics.jsonl、batch_summary.json 保存在哪里。
+9. 从零运行的预计总时间，而不只是缓存运行时间。
+10. 哪些提升是完整实验确认，哪些只是待验证假设。
+
+======================================================================
+20. 一句话实现原则
+======================================================================
+
+保留 Simple3D 的可靠 FPFH 主干，用类别路由选择全局或区域评分；共享一次 GPU 特征提取，使用确定性缓存和分区 coreset控制时间；对 O-ROC 与 P-ROC 的冲突类别采用独立评分路径，不用一套参数强行覆盖全部 12 类。

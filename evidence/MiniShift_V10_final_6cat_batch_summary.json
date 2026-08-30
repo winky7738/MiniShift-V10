@@ -1,0 +1,90 @@
+{
+  "run_tag": "V10_final_6cat",
+  "categories": [
+    "screen",
+    "piggy",
+    "nut",
+    "flat_pad",
+    "plastic_cylinder",
+    "button_cell"
+  ],
+  "completed_categories": [
+    "screen",
+    "piggy",
+    "nut",
+    "flat_pad",
+    "plastic_cylinder",
+    "button_cell"
+  ],
+  "skipped_existing_categories": [],
+  "failures": [],
+  "elapsed_seconds": 27514.09,
+  "results": [
+    {
+      "category": "screen",
+      "metrics": {
+        "image_auc": 0.691,
+        "pixel_auc": 0.753,
+        "au_pro": 0
+      },
+      "elapsed_seconds": 238.15,
+      "strategy_name": "regional_rank_v9",
+      "pipeline_route": "regional_rank"
+    },
+    {
+      "category": "piggy",
+      "metrics": {
+        "image_auc": 0.799,
+        "pixel_auc": 0.69,
+        "au_pro": 0
+      },
+      "elapsed_seconds": 325.36,
+      "strategy_name": "global_legacy_preserve",
+      "pipeline_route": "global_legacy"
+    },
+    {
+      "category": "nut",
+      "metrics": {
+        "image_auc": 0.787,
+        "pixel_auc": 0.733,
+        "au_pro": 0
+      },
+      "elapsed_seconds": 333.3,
+      "strategy_name": "regional_rank_v9",
+      "pipeline_route": "regional_rank"
+    },
+    {
+      "category": "flat_pad",
+      "metrics": {
+        "image_auc": 0.725,
+        "pixel_auc": 0.653,
+        "au_pro": 0
+      },
+      "elapsed_seconds": 9142.12,
+      "strategy_name": "regional_rank_v9",
+      "pipeline_route": "regional_rank"
+    },
+    {
+      "category": "plastic_cylinder",
+      "metrics": {
+        "image_auc": 0.862,
+        "pixel_auc": 0.717,
+        "au_pro": 0
+      },
+      "elapsed_seconds": 9084.92,
+      "strategy_name": "global_legacy_preserve",
+      "pipeline_route": "global_legacy"
+    },
+    {
+      "category": "button_cell",
+      "metrics": {
+        "image_auc": 0.934,
+        "pixel_auc": 0.738,
+        "au_pro": 0
+      },
+      "elapsed_seconds": 8380.77,
+      "strategy_name": "global_legacy_preserve",
+      "pipeline_route": "global_legacy"
+    }
+  ]
+}

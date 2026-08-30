@@ -1,0 +1,90 @@
+{
+  "run_tag": "V10_final_other6",
+  "categories": [
+    "capsule",
+    "cube",
+    "spring_pad",
+    "screw",
+    "toothbrush",
+    "light"
+  ],
+  "completed_categories": [
+    "capsule",
+    "cube",
+    "spring_pad",
+    "screw",
+    "toothbrush",
+    "light"
+  ],
+  "skipped_existing_categories": [],
+  "failures": [],
+  "elapsed_seconds": 41873.6,
+  "results": [
+    {
+      "category": "capsule",
+      "metrics": {
+        "image_auc": 0.957,
+        "pixel_auc": 0.818,
+        "au_pro": 0
+      },
+      "elapsed_seconds": 8025.92,
+      "strategy_name": "global_legacy_preserve",
+      "pipeline_route": "global_legacy"
+    },
+    {
+      "category": "cube",
+      "metrics": {
+        "image_auc": 0.693,
+        "pixel_auc": 0.703,
+        "au_pro": 0
+      },
+      "elapsed_seconds": 7629.7,
+      "strategy_name": "regional_rank_extra_coverage",
+      "pipeline_route": "regional_rank_extra"
+    },
+    {
+      "category": "spring_pad",
+      "metrics": {
+        "image_auc": 0.8,
+        "pixel_auc": 0.644,
+        "au_pro": 0
+      },
+      "elapsed_seconds": 10348.05,
+      "strategy_name": "regional_rank_v9",
+      "pipeline_route": "regional_rank"
+    },
+    {
+      "category": "screw",
+      "metrics": {
+        "image_auc": 0.19,
+        "pixel_auc": 0.689,
+        "au_pro": 0
+      },
+      "elapsed_seconds": 8230.35,
+      "strategy_name": "regional_rank_extra_coverage",
+      "pipeline_route": "regional_rank_extra"
+    },
+    {
+      "category": "toothbrush",
+      "metrics": {
+        "image_auc": 0.751,
+        "pixel_auc": 0.444,
+        "au_pro": 0
+      },
+      "elapsed_seconds": 3970.51,
+      "strategy_name": "regional_rank_extra_coverage",
+      "pipeline_route": "regional_rank_extra"
+    },
+    {
+      "category": "light",
+      "metrics": {
+        "image_auc": 0.687,
+        "pixel_auc": 0.69,
+        "au_pro": 0
+      },
+      "elapsed_seconds": 3655.58,
+      "strategy_name": "regional_rank_v9",
+      "pipeline_route": "regional_rank"
+    }
+  ]
+}

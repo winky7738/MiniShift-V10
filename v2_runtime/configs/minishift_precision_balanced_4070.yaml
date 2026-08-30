@@ -1,0 +1,67 @@
+dataset: minishift
+level: ALL
+use_MSND: true
+use_LFSA: true
+num_MSND: 2
+scale_fusion: legacy_equivalent
+normal_max_nn: 20
+num_group: 6144
+group_size: 128
+max_nn: 40
+interp_chunk_size: 4096
+query_chunk: 512
+bank_chunk: 4096
+p_map_mode: dual_center
+smooth_k: 8
+p_raw_weight: 0.65
+p_smooth_weight: 0.35
+object_score_mode: legacy
+o_coherence_k: 12
+normal_calibration_folds: 0
+prototype_density_norm_for_p: false
+prototype_density_norm_for_o: false
+use_geom4d_for_p: false
+geom_weight: 0.05
+vis_save: true
+use_category_profiles: true
+
+categories:
+  capsule:
+    num_group: 6144
+    group_size: 128
+    max_nn: 40
+    normal_max_nn: 24
+    p_raw_weight: 0.50
+    p_smooth_weight: 0.50
+    smooth_k: 12
+  cube:
+    num_group: 6144
+    group_size: 128
+    max_nn: 40
+    p_raw_weight: 0.65
+    p_smooth_weight: 0.35
+    smooth_k: 8
+  spring_pad:
+    num_group: 6144
+    group_size: 96
+    max_nn: 40
+    p_raw_weight: 0.65
+    p_smooth_weight: 0.35
+    smooth_k: 8
+  screw:
+    num_group: 6144
+    group_size: 128
+    max_nn: 40
+    object_score_mode: legacy
+    p_raw_weight: 0.70
+    p_smooth_weight: 0.30
+    smooth_k: 8
+  toothbrush:
+    num_group: 8192
+    group_size: 64
+    max_nn: 30
+    normal_max_nn: 20
+    interp_chunk_size: 2048
+    p_raw_weight: 0.85
+    p_smooth_weight: 0.15
+    smooth_k: 6

@@ -1,0 +1,429 @@
+{
+  "category": "cube",
+  "level": "ALL",
+  "train_samples": 100,
+  "test_samples": 130,
+  "elapsed_seconds": 7629.7,
+  "phase_seconds": {
+    "training_total": 3233.93,
+    "testing_total": 4395.77,
+    "coreset_selection_seconds": 28.37,
+    "scale_calibration_seconds": 0.092,
+    "normal_calibration_seconds": 2.236
+  },
+  "target_runtime_minutes": 120,
+  "forced_time_limit": false,
+  "parameters": {
+    "expname": "MiniShift_V10_final_other6_cube_ALL",
+    "device": "cuda:0",
+    "dataset": "minishift",
+    "max_nn": 40,
+    "normal_max_nn": 20,
+    "num_group": 4096,
+    "group_size": 128,
+    "use_MSND": true,
+    "use_LFSA": true,
+    "vis_save": false,
+    "num_MSND": 2,
+    "feature": "FPFH",
+    "level": "ALL",
+    "scale_fusion": "legacy_equivalent",
+    "legacy_duplicate_scale": false,
+    "post_smooth_mode": "none",
+    "post_smooth_k": 12,
+    "post_smooth_centers": 1024,
+    "interp_chunk_size": 4096,
+    "p_map_mode": "dual_center",
+    "smooth_k": 8,
+    "p_raw_weight": 0.65,
+    "p_smooth_weight": 0.35,
+    "object_top_ratio": 0.001,
+    "object_score_min_topk": 80,
+    "object_score_max_topk": 2048,
+    "use_robust_object_score": true,
+    "prototype_density_norm": false,
+    "prototype_density_norm_for_p": false,
+    "prototype_density_norm_for_o": false,
+    "prototype_density_k": 5,
+    "prototype_density_clip_low": 0.01,
+    "prototype_density_clip_high": 0.99,
+    "use_geom4d": false,
+    "use_geom4d_for_p": false,
+    "geom_weight": 0.05,
+    "query_chunk": 1024,
+    "bank_chunk": 8192,
+    "use_category_profiles": true,
+    "category_profiles": {
+      "nut": {
+        "category_profile_name": "localized_ring",
+        "object_tail_weights": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "p_raw_weight": 0.7,
+        "p_smooth_weight": 0.3,
+        "smooth_k": 8,
+        "region_radial_bins": 4,
+        "region_height_bins": 1,
+        "decision_scale_weights": [
+          0.25,
+          0.5,
+          0.25
+        ],
+        "strategy_name": "regional_rank_v9",
+        "use_regional_memory": true,
+        "use_regional_coreset": true,
+        "use_scale_rank_fusion": true,
+        "object_score_mode": "category_multi_tail",
+        "coreset_ratio": 0.05,
+        "normal_calibration_samples": 16,
+        "scale_calibration_samples": 4096,
+        "pipeline_route": "regional_rank"
+      },
+      "piggy": {
+        "category_profile_name": "smooth_volumetric",
+        "object_tail_weights": [
+          0.05,
+          0.05,
+          0.9
+        ],
+        "p_raw_weight": 0.65,
+        "p_smooth_weight": 0.35,
+        "smooth_k": 8,
+        "region_radial_bins": 3,
+        "region_height_bins": 2,
+        "decision_scale_weights": [
+          0.2,
+          0.45,
+          0.35
+        ],
+        "strategy_name": "global_legacy_preserve",
+        "use_regional_memory": false,
+        "use_regional_coreset": false,
+        "use_scale_rank_fusion": false,
+        "object_score_mode": "legacy",
+        "coreset_ratio": 0.05,
+        "normal_calibration_samples": 16,
+        "scale_calibration_samples": 4096,
+        "pipeline_route": "global_legacy"
+      },
+      "flat_pad": {
+        "category_profile_name": "planar_broad",
+        "object_tail_weights": [
+          0.1,
+          0.65,
+          0.25
+        ],
+        "p_raw_weight": 0.55,
+        "p_smooth_weight": 0.45,
+        "smooth_k": 12,
+        "region_radial_bins": 4,
+        "region_height_bins": 2,
+        "decision_scale_weights": [
+          0.2,
+          0.55,
+          0.25
+        ],
+        "strategy_name": "regional_rank_v9",
+        "use_regional_memory": true,
+        "use_regional_coreset": true,
+        "use_scale_rank_fusion": true,
+        "object_score_mode": "category_multi_tail",
+        "coreset_ratio": 0.05,
+        "normal_calibration_samples": 16,
+        "scale_calibration_samples": 4096,
+        "pipeline_route": "regional_rank"
+      },
+      "screen": {
+        "category_profile_name": "planar_edge_aware",
+        "object_tail_weights": [
+          0.15,
+          0.6,
+          0.25
+        ],
+        "p_raw_weight": 0.6,
+        "p_smooth_weight": 0.4,
+        "smooth_k": 10,
+        "region_radial_bins": 4,
+        "region_height_bins": 2,
+        "decision_scale_weights": [
+          0.15,
+          0.55,
+          0.3
+        ],
+        "strategy_name": "regional_rank_v9",
+        "use_regional_memory": true,
+        "use_regional_coreset": true,
+        "use_scale_rank_fusion": true,
+        "object_score_mode": "category_multi_tail",
+        "coreset_ratio": 0.05,
+        "normal_calibration_samples": 16,
+        "scale_calibration_samples": 4096,
+        "pipeline_route": "regional_rank"
+      },
+      "spring_pad": {
+        "category_profile_name": "planar_broad",
+        "object_tail_weights": [
+          0.1,
+          0.65,
+          0.25
+        ],
+        "p_raw_weight": 0.55,
+        "p_smooth_weight": 0.45,
+        "smooth_k": 12,
+        "region_radial_bins": 4,
+        "region_height_bins": 2,
+        "decision_scale_weights": [
+          0.2,
+          0.55,
+          0.25
+        ],
+        "strategy_name": "regional_rank_v9",
+        "use_regional_memory": true,
+        "use_regional_coreset": true,
+        "use_scale_rank_fusion": true,
+        "object_score_mode": "category_multi_tail",
+        "coreset_ratio": 0.05,
+        "normal_calibration_samples": 16,
+        "scale_calibration_samples": 4096,
+        "pipeline_route": "regional_rank"
+      },
+      "light": {
+        "category_profile_name": "planar_broad",
+        "object_tail_weights": [
+          0.1,
+          0.65,
+          0.25
+        ],
+        "p_raw_weight": 0.6,
+        "p_smooth_weight": 0.4,
+        "smooth_k": 10,
+        "region_radial_bins": 4,
+        "region_height_bins": 2,
+        "decision_scale_weights": [
+          0.2,
+          0.55,
+          0.25
+        ],
+        "strategy_name": "regional_rank_v9",
+        "use_regional_memory": true,
+        "use_regional_coreset": true,
+        "use_scale_rank_fusion": true,
+        "object_score_mode": "category_multi_tail",
+        "coreset_ratio": 0.05,
+        "normal_calibration_samples": 16,
+        "scale_calibration_samples": 4096,
+        "pipeline_route": "regional_rank"
+      },
+      "screw": {
+        "category_profile_name": "localized_rotational",
+        "object_tail_weights": [
+          0.6,
+          0.1,
+          0.3
+        ],
+        "p_raw_weight": 0.7,
+        "p_smooth_weight": 0.3,
+        "smooth_k": 6,
+        "region_radial_bins": 4,
+        "region_height_bins": 2,
+        "decision_scale_weights": [
+          0.25,
+          0.5,
+          0.25
+        ],
+        "strategy_name": "regional_rank_extra_coverage",
+        "use_regional_memory": true,
+        "use_regional_coreset": true,
+        "use_scale_rank_fusion": true,
+        "object_score_mode": "category_multi_tail",
+        "coreset_ratio": 0.06,
+        "normal_calibration_samples": 24,
+        "scale_calibration_samples": 8192,
+        "region_min_bank": 80,
+        "pipeline_route": "regional_rank_extra"
+      },
+      "button_cell": {
+        "category_profile_name": "localized_rotational",
+        "object_tail_weights": [
+          0.55,
+          0.15,
+          0.3
+        ],
+        "p_raw_weight": 0.65,
+        "p_smooth_weight": 0.35,
+        "smooth_k": 8,
+        "region_radial_bins": 4,
+        "region_height_bins": 2,
+        "decision_scale_weights": [
+          0.25,
+          0.5,
+          0.25
+        ],
+        "strategy_name": "global_legacy_preserve",
+        "use_regional_memory": false,
+        "use_regional_coreset": false,
+        "use_scale_rank_fusion": false,
+        "object_score_mode": "legacy",
+        "coreset_ratio": 0.05,
+        "normal_calibration_samples": 16,
+        "scale_calibration_samples": 4096,
+        "pipeline_route": "global_legacy"
+      },
+      "capsule": {
+        "category_profile_name": "smooth_volumetric",
+        "object_tail_weights": [
+          0.15,
+          0.35,
+          0.5
+        ],
+        "p_raw_weight": 0.65,
+        "p_smooth_weight": 0.35,
+        "smooth_k": 8,
+        "region_radial_bins": 3,
+        "region_height_bins": 2,
+        "decision_scale_weights": [
+          0.2,
+          0.45,
+          0.35
+        ],
+        "strategy_name": "global_legacy_preserve",
+        "use_regional_memory": false,
+        "use_regional_coreset": false,
+        "use_scale_rank_fusion": false,
+        "object_score_mode": "legacy",
+        "coreset_ratio": 0.05,
+        "normal_calibration_samples": 16,
+        "scale_calibration_samples": 4096,
+        "pipeline_route": "global_legacy"
+      },
+      "plastic_cylinder": {
+        "category_profile_name": "smooth_volumetric",
+        "object_tail_weights": [
+          0.15,
+          0.35,
+          0.5
+        ],
+        "p_raw_weight": 0.65,
+        "p_smooth_weight": 0.35,
+        "smooth_k": 8,
+        "region_radial_bins": 3,
+        "region_height_bins": 2,
+        "decision_scale_weights": [
+          0.2,
+          0.45,
+          0.35
+        ],
+        "strategy_name": "global_legacy_preserve",
+        "use_regional_memory": false,
+        "use_regional_coreset": false,
+        "use_scale_rank_fusion": false,
+        "object_score_mode": "legacy",
+        "coreset_ratio": 0.05,
+        "normal_calibration_samples": 16,
+        "scale_calibration_samples": 4096,
+        "pipeline_route": "global_legacy"
+      },
+      "cube": {
+        "category_profile_name": "edged_volumetric",
+        "object_tail_weights": [
+          0.2,
+          0.5,
+          0.3
+        ],
+        "p_raw_weight": 0.65,
+        "p_smooth_weight": 0.35,
+        "smooth_k": 8,
+        "region_radial_bins": 3,
+        "region_height_bins": 2,
+        "decision_scale_weights": [
+          0.2,
+          0.5,
+          0.3
+        ],
+        "strategy_name": "regional_rank_extra_coverage",
+        "use_regional_memory": true,
+        "use_regional_coreset": true,
+        "use_scale_rank_fusion": true,
+        "object_score_mode": "category_multi_tail",
+        "coreset_ratio": 0.06,
+        "normal_calibration_samples": 24,
+        "scale_calibration_samples": 8192,
+        "region_min_bank": 80,
+        "pipeline_route": "regional_rank_extra"
+      },
+      "toothbrush": {
+        "category_profile_name": "thin_elongated",
+        "object_tail_weights": [
+          0.45,
+          0.25,
+          0.3
+        ],
+        "p_raw_weight": 0.7,
+        "p_smooth_weight": 0.3,
+        "smooth_k": 6,
+        "region_radial_bins": 5,
+        "region_height_bins": 2,
+        "decision_scale_weights": [
+          0.3,
+          0.5,
+          0.2
+        ],
+        "strategy_name": "regional_rank_extra_coverage",
+        "use_regional_memory": true,
+        "use_regional_coreset": true,
+        "use_scale_rank_fusion": true,
+        "object_score_mode": "category_multi_tail",
+        "coreset_ratio": 0.06,
+        "normal_calibration_samples": 24,
+        "scale_calibration_samples": 8192,
+        "region_min_bank": 80,
+        "pipeline_route": "regional_rank_extra"
+      }
+    },
+    "geometry_profiles": {},
+    "category_to_geometry": {},
+    "object_score_mode": "category_multi_tail",
+    "o_coherence_k": 12,
+    "normal_calibration_folds": 0,
+    "normal_calibration_samples": 24,
+    "cache_features": true,
+    "cache_test_features": true,
+    "feature_cache_dir": "./feature-cache",
+    "diagnostic_dir": "./logs",
+    "coreset_ratio": 0.06,
+    "coreset_preselect_factor": 0,
+    "use_regional_coreset": true,
+    "anomaly_num_nn": 1,
+    "fpfh_normalization": "none",
+    "use_position_features": false,
+    "position_weight": 0.0,
+    "use_regional_memory": true,
+    "region_radial_bins": 3,
+    "region_height_bins": 2,
+    "region_min_bank": 80,
+    "use_scale_rank_fusion": true,
+    "decision_scale_weights": [
+      0.2,
+      0.5,
+      0.3
+    ],
+    "scale_calibration_samples": 8192,
+    "rank_tail_weight": 0.15,
+    "category_profile_name": "edged_volumetric",
+    "object_tail_weights": [
+      0.2,
+      0.5,
+      0.3
+    ],
+    "strategy_name": "regional_rank_extra_coverage",
+    "pipeline_route": "regional_rank_extra"
+  },
+  "metrics": {
+    "image_auc": 0.693,
+    "pixel_auc": 0.703,
+    "au_pro": 0
+  },
+  "comparison_to_4096_baseline": null
+}

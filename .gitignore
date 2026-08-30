@@ -1,0 +1,35 @@
+# Python caches and local environments
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+
+# IDE and OS metadata
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local training artifacts (never commit datasets or multi-GB caches)
+**/feature-cache/
+**/logs/
+**/vis-results/
+**/vis-results-GT/
+*.pt
+*.pth
+*.ckpt
+
+# Local datasets and archives
+datasets/
+MiniShiftAD/
+*.zip
+*.rar
+*.7z
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
